@@ -1,5 +1,5 @@
 const crypto = require('crypto'); 
-const net = require("tls")
+const net = require("net")
 const fs = require("fs")
 const color = require("colors")
 const path = require("node:path")
@@ -43,14 +43,34 @@ const s = net.createServer().listen(config.port, "0.0.0.0", 256, () => {
     process.stdout.write('Sucess! Listening on ' + s.address().address + ':' + s.address().port + '\nNotice: Packets sent by client will not be parsed.\n')
 })
 
+let conn = []
+
 s.on("connection", (sk) => {
+    conn.push(sk)
     sk.setKeepAlive(5000);
     sk.setNoDelay(true)
     sk.setEncoding("utf-8")
     sk.write(JSON.stringify({"hdr": "ENC", "pk": pk}, "", " "))
-    sk.on("error", () => {console.log("w")})
-}).on("error", () => {
-    console.log("w")
+    sk.on("close", () => {
+        let ind = conn.indexOf(sk)
+        if(ind > -1) {
+            conn.splice(ind, 1)
+        }
+    })
+    sk.on("data", (d) => {
+        try {
+            // console.log(d.toString())
+            conn.forEach(c => {
+                c.write(d.toString("utf-8"))
+            })
+        }
+        catch(e) {
+            sk.destroy()
+        }
+    })
+    sk.on("error", () => {})
+}).on("error", (e) => {
+    console.log("An error occured: " + e.name + " " + e.message + "\nStack: " + e.stack)
 })
 
 // process.on("beforeExit", () => {

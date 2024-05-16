@@ -3,8 +3,7 @@ let NAME = ""
 let UUID = ""
 let pk = ""
 
-const net = require("node:tls")
-const net_ = require("node:net")
+const net = require("node:net")
 const fs = require("fs")
 const color = require("colors")
 const path = require("node:path")
@@ -14,6 +13,16 @@ if(!fs.existsSync(path.resolve('./cfg.json'))) {
 }
 const options = require('./cfg.json')
 const EventEmitter = require("node:events")
+const crypto = require("crypto")
+
+function UUIDGen() {
+    let uuid = []
+    uuid.push(crypto.createHash("sha256").update(Date.now().toString()).digest("hex").toString().slice(0, 8))
+    uuid.push(Buffer.from(crypto.randomBytes(8)).toString("hex").slice(0, 4))
+    uuid.push((Buffer.from("12c-").toString("hex").slice(1, 3) + crypto.createHash("sha256").update(crypto.randomBytes(8)).digest("hex").toString()).slice(0, 4))
+    uuid.push((crypto.createHash("sha512").update(Buffer.from(crypto.randomBytes(8))).digest("hex").toString().slice(1, 2) + Buffer.from(crypto.randomBytes(15)).toString("hex")).slice(4,12))
+    return uuid.join('-')
+}
 
 /**
  * Payload class.
@@ -47,7 +56,7 @@ class CLUtil {
      */
     constructor(_UUID) {
         this.UUID = _UUID || UUIDGen()
-        this.socket = net.connect({port: parseInt(options.port) !== NaN ? parseInt(options.port) : 32523, host: net_.isIP(options.address) ? options.address : "0.0.0.0"}, () => {
+        this.socket = net.createConnection({port: parseInt(options.port) !== NaN ? parseInt(options.port) : 32523, host: net.isIP(options.address) ? options.address : "0.0.0.0"}, () => {
             console.log("Connected to server.")
             this.socket.setKeepAlive(5000)
             this.socket.setNoDelay(true)
@@ -59,7 +68,7 @@ class CLUtil {
         if(!inp instanceof Payload) {
             throw new TypeError("Invalid input. [CLUtil class/parser method]")
         }
-        return {hdr: "MESSAGE", msg: inp.message, uuid: inp.user, ts: inp.time, name: inp.name}
+        return {hdr: "MSG", msg: inp.message, uuid: inp.user, ts: inp.time, name: inp.name}
     }
 
     /**
@@ -71,7 +80,7 @@ class CLUtil {
         try {
             return JSON.parse(input.toString("utf-8"))
         } catch(e) {
-            return {hdr: "MSG", msg: "*Message couldn't be parsed!", uuid: "coffee00-1234-1234-abcdabcd", ts: Date.now(), name: "(unknown)"}
+            return {hdr: "MSG", msg: "*Message couldn't be parsed!", uuid: "c0ffee00-1234-1234-abcdabcd", ts: Date.now(), name: "(unknown)"}
         }
     }
 
@@ -82,16 +91,89 @@ class CLUtil {
     getSocket() {
         return this.socket
     }
+
+    /**
+     * Self explainatory name.
+     * @returns... yk!
+     */
+    getUUID() {
+        return this.UUID
+    }
 }
 
-net.connect({port: parseInt(options.port) !== NaN ? parseInt(options.port) : 32523, host: net_.isIP(options.address) ? options.address : "0.0.0.0"})
+/*
+Schema:
+----------------------------------
+{
+    hdr: "MSG", 
+    msg: "*Message couldn't be parsed!", 
+    uuid: "c0ffee00-1234-1234-abcdabcd", 
+    ts: Date.now(), 
+    name: "(unknown)"
+}
+----------------------------------
+*/
+let cl = new CLUtil()
+cl.getSocket()
     .on("connect", () => {
-        console.log("Connected to server.")
-    })
-    .on("data", (d) => {
+        cl.getSocket().setKeepAlive(5000)
+        cl.getSocket().setNoDelay(true)
+    }).on("data", (d) => {
         let JSONified = JSON.parse(d.toString("utf8"))
-        if(JSONified.hdr === "ENC" && !!JSONified.pk) {pk = JSON.parse(d.toString('utf8')).pk}
+        // console.log("Income received")
+        if(JSONified.hdr === "ENC" && !!JSONified.pk) {pk = JSON.parse(d.toString('utf8')).pk} // well... not used yet (public key)
         if(JSONified.hdr === "MSG") {
-            
+            if(!!/([a-f]|[0-9]){8}\-([a-f]|[0-9]){4}\-([a-f]|[0-9]){4}\-([a-f]|[0-9]){8}/gmi.test(JSONified.uuid) && !!JSONified.ts && JSONified.name) {
+                // console.log("Income received #1")
+                let _dp = new Date(!!JSONified.ts ? JSONified.ts : Date.now())
+                console.log(`[${_dp.getHours()}:${_dp.getMinutes() + ":" + _dp.getSeconds()}] [${JSONified.name}]: ${JSONified.msg}`)
+            }
         }
     })
+
+if(!process.stdin.isTTY) {
+    throw new Error("STDIN is not TTY. Couldn't start this client because you need a solution for tihs...")
+}
+
+process.stdin.setEncoding("utf-8")
+process.stdin.resume()
+process.stdin.on("data", (d) => {
+    if(!_isNameReg) {
+        if(d.toString().trim().length < 1) {
+            process.stdout.moveCursor(-d?.length, -3)
+            process.stdout.clearScreenDown()
+            process.stdout.write("Empty name.\n")
+            return;
+        }
+        if(d.toString().trim().length > 24) {
+            process.stdout.moveCursor(-d?.length, -3)
+            process.stdout.clearScreenDown()
+            process.stdout.write("Too long name (24 chars max)\n")
+            return;
+        }
+        NAME = d.toString("utf-8").trim()
+        _isNameReg = true
+        console.clear()
+        return false
+    }
+    if(d.toString().trim().length < 1) {
+        process.stdout.moveCursor(0, -1)
+        return false
+    }
+    let payload = cl.parser(new Payload(d.toString().trim(), cl.getUUID(), Date.now(), NAME))
+
+    process.stdout.moveCursor(-d.length, -1)
+    process.stdout.clearLine() 
+    cl.getSocket().write(JSON.stringify(payload))
+})
+// net.createConnection(parseInt(options.port) !== NaN ? parseInt(options.port) : 32523, net.isIP(options.address) ? options.address : "0.0.0.0")
+//     .on("connect", () => {
+//         console.log("Connected to server.")
+//     })
+//     .on("data", (d) => {
+//         let JSONified = JSON.parse(d.toString("utf8"))
+//         if(JSONified.hdr === "ENC" && !!JSONified.pk) {pk = JSON.parse(d.toString('utf8')).pk} // well... not used yet (public key)
+//         if(JSONified.hdr === "MSG") {
+//             console.log()
+//         }
+//     })
