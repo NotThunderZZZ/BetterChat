@@ -9,12 +9,12 @@ const color = require("colors")
 const path = require("node:path")
 if(!fs.existsSync(path.resolve('./cfg.json'))) {
     fs.appendFileSync(path.resolve('./cfg.json'), JSON.stringify({address: "0.0.0.0", port: 32523}))
-    console.log("[LOG] INFO: ".bgCyan + "Created configuration file %s", path.resolve("./cfg.json"))
+    console.log("[LOG] INFO:".bgCyan + " Created configuration file %s", path.resolve("./cfg.json"))
 }
 const options = require('./cfg.json')
 const EventEmitter = require("node:events")
 const crypto = require("crypto")
-
+process.title = "BetterChat Client | Pending username..."
 function UUIDGen() {
     let uuid = []
     uuid.push(crypto.createHash("sha256").update(Date.now().toString()).digest("hex").toString().slice(0, 8))
@@ -114,6 +114,7 @@ Schema:
 ----------------------------------
 */
 let cl = new CLUtil()
+exports.cl = cl
 cl.getSocket()
     .on("connect", () => {
         cl.getSocket().setKeepAlive(5000)
@@ -126,8 +127,12 @@ cl.getSocket()
             if(!!/([a-f]|[0-9]){8}\-([a-f]|[0-9]){4}\-([a-f]|[0-9]){4}\-([a-f]|[0-9]){8}/gmi.test(JSONified.uuid) && !!JSONified.ts && JSONified.name) {
                 // console.log("Income received #1")
                 let _dp = new Date(!!JSONified.ts ? JSONified.ts : Date.now())
-                console.log(`[${_dp.getHours()}:${_dp.getMinutes() + ":" + _dp.getSeconds()}] [${JSONified.name}]: ${JSONified.msg}`)
+                console.log(`${"[".gray}${(("0" + _dp.getHours()).slice(-2).toString().green + ":".white + ("0" + _dp.getMinutes()).slice(-2).toString().green + ":".white + ("0" + _dp.getSeconds()).slice(-2).toString().green)}${"]".gray} ${"[".gray}${new String(JSONified?.name).toString().cyan}${"]".gray}: ${JSONified.msg.white}`)
             }
+        }
+    }).on("error", (e) => {
+        if(e.message.includes("ECONNREFUSED")) {
+            console.log("[LOG] ERROR:".bgRed + ` Connection refused. ${options.address}:${options.port}\n` + "[LOG] ERROR:".bgRed + " If you believe everything is alright, please contact the server owner.")
         }
     })
 
@@ -154,6 +159,7 @@ process.stdin.on("data", (d) => {
         NAME = d.toString("utf-8").trim()
         _isNameReg = true
         console.clear()
+        process.title = "BetterChat Client | " + NAME
         return false
     }
     if(d.toString().trim().length < 1) {
@@ -166,14 +172,3 @@ process.stdin.on("data", (d) => {
     process.stdout.clearLine() 
     cl.getSocket().write(JSON.stringify(payload))
 })
-// net.createConnection(parseInt(options.port) !== NaN ? parseInt(options.port) : 32523, net.isIP(options.address) ? options.address : "0.0.0.0")
-//     .on("connect", () => {
-//         console.log("Connected to server.")
-//     })
-//     .on("data", (d) => {
-//         let JSONified = JSON.parse(d.toString("utf8"))
-//         if(JSONified.hdr === "ENC" && !!JSONified.pk) {pk = JSON.parse(d.toString('utf8')).pk} // well... not used yet (public key)
-//         if(JSONified.hdr === "MSG") {
-//             console.log()
-//         }
-//     })

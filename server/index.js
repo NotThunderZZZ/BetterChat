@@ -4,12 +4,14 @@ const fs = require("fs")
 const color = require("colors")
 const path = require("node:path")
 if(!fs.existsSync(path.resolve('./cfg.json'))) {
-    fs.appendFileSync(path.resolve('./cfg.json'), JSON.stringify({port: 32523}))
+    fs.appendFileSync(path.resolve('./cfg.json'), JSON.stringify({port: 32523, address: "0.0.0.0"}))
     console.log("[LOG] INFO: ".bgCyan + "Created configuration file %s", path.resolve("./cfg.json"))
 }
 const config = require('./cfg.json')
 
 let pk;
+
+process.title = "BetterChat Server | Connecting..."
 
 function gen() { 
     const keyPair = crypto.generateKeyPairSync('rsa-pss', { 
@@ -39,7 +41,8 @@ function gen() {
 
 gen()
 
-const s = net.createServer().listen(config.port, "0.0.0.0", 256, () => {
+const s = net.createServer().listen(isNaN(config.port) ? config.port : 32523, net.isIP(config.address) ? config.address : "0.0.0.0", 256, () => {
+    process.title = "BetterChat Server | Online"
     process.stdout.write('Sucess! Listening on ' + s.address().address + ':' + s.address().port + '\nNotice: Packets sent by client will not be parsed.\n')
 })
 
