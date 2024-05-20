@@ -7,5 +7,6 @@ We offer:
 - Ensure the interface is intuitive and accessible for all
 - Provide the super smooth experience of chat 📡
 - Deliver fast, simple, and beautiful messaging 💬
+
 **<u>TODO</u>:**
 - Implement a strong, robust encryption 🔒
