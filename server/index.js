@@ -5,7 +5,7 @@ const color = require("colors")
 const path = require("node:path")
 if(!fs.existsSync(path.resolve('./cfg.json'))) {
     fs.appendFileSync(path.resolve('./cfg.json'), JSON.stringify({port: 32523, address: "0.0.0.0"}))
-    console.log("[LOG] INFO: ".bgCyan + "Created configuration file %s", path.resolve("./cfg.json"))
+    console.log("[LOG] INFO:".bgCyan + " Created configuration file %s", path.resolve("./cfg.json"))
 }
 const config = require('./cfg.json')
 
@@ -47,7 +47,7 @@ const s = net.createServer().listen(isNaN(config.port) ? config.port : 32523, ne
 })
 
 let conn = []
-
+let lastMSGByIP = new Map()
 s.on("connection", (sk) => {
     conn.push(sk)
     sk.setKeepAlive(5000);
@@ -62,6 +62,16 @@ s.on("connection", (sk) => {
     })
     sk.on("data", (d) => {
         try {
+            let JSONified = JSON.parse(d.toString("utf-8"))
+            let thisIP = sk.address().address
+
+            let lmbi = lastMSGByIP.get(thisIP)
+            if(JSONified.ts - lmbi < 300) {
+                return false
+            }
+
+            lastMSGByIP.set(thisIP, JSONified.ts)
+            
             // console.log(d.toString())
             conn.forEach(c => {
                 c.write(d.toString("utf-8"))

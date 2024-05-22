@@ -46,7 +46,27 @@ class Payload {
         this.name = (!!n) ? n : NAME  
     }
 }
-
+class _Timer {
+    _cooldown = 0
+    _interv = 0
+    constructor() {}
+    setCD(ms) {
+        this._cooldown = parseInt(ms)
+    }
+    getCD() {
+        return this._cooldown
+    }
+    update() {
+        if(this._cooldown > 0) {
+            this._cooldown -= 1
+        } else {
+            clearInterval(this._interv)
+        }
+    }
+    interv(id) {
+        this._interv = id
+    }
+}
 class CLUtil {
     /**
      * Create a client with provided UUID.
@@ -114,13 +134,14 @@ Schema:
 ----------------------------------
 */
 let cl = new CLUtil()
+let tm = new _Timer()
 exports.cl = cl
 cl.getSocket()
     .on("connect", () => {
         cl.getSocket().setKeepAlive(5000)
         cl.getSocket().setNoDelay(true)
     }).on("data", (d) => {
-        let JSONified = JSON.parse(d.toString("utf8"))
+        let JSONified = cl.datahandler(d.toString("utf8"))
         // console.log("Income received")
         if(JSONified.hdr === "ENC" && !!JSONified.pk) {pk = JSON.parse(d.toString('utf8')).pk} // well... not used yet (public key)
         if(JSONified.hdr === "MSG") {
@@ -166,9 +187,19 @@ process.stdin.on("data", (d) => {
         process.stdout.moveCursor(0, -1)
         return false
     }
+
+    if(tm.getCD()> 0) {
+        process.stdout.moveCursor(0, -1)
+        console.log(`[LOG] WARN:`.yellow + ` You're sending too fast. Please wait ${tm._cooldown}ms before sending another message.\n` + `[LOG] WARN:`.yellow + " Your message haven't sent.")
+        return false
+    }
+
     let payload = cl.parser(new Payload(d.toString().trim(), cl.getUUID(), Date.now(), NAME))
 
     process.stdout.moveCursor(-d.length, -1)
     process.stdout.clearLine() 
     cl.getSocket().write(JSON.stringify(payload))
+    tm.setCD(170)
+    let __ = setInterval(() => {tm.update()}, 1)
+    tm.interv(__)
 })
