@@ -13,33 +13,36 @@ let pk;
 
 process.title = "BetterChat Server | Connecting..."
 
-function gen() { 
-    const keyPair = crypto.generateKeyPairSync('rsa-pss', { 
-        modulusLength: 1024, 
-        publicKeyEncoding: { 
-            type: 'spki', 
-            format: 'pem',
-        }, 
-        privateKeyEncoding: { 
-            type: 'pkcs8', 
-            format: 'pem', 
-            cipher: 'aes-256-cbc', 
-            passphrase: '' // crypto.createHash("sha512")
-            //     .update(crypto.createHash("sha512")
-            //         .update(Date.now().toString())
-            //         .digest("hex")
-            //         .replace(/e/gi, Date.now().toString().repeat(57))
-            //         .toString())
-            //     .digest("hex")
-            //     .toString()
-            //     .repeat(445)
-            //     .slice(24,88)
-        } 
-    });
-    pk = keyPair.publicKey
-} 
+class PacketUtil {
+    constructor() {}
+    datahandler(input) {
+        try {
+            let JSONified = JSON.parse(input.toString("utf-8"))
+            /*
+            Schema:
+            ----------------------------------
+            {
+                hdr: "MSG", 
+                msg: "*Message couldn't be parsed!", 
+                uuid: "c0ffee00-1234-1234-abcdabcd", 
+                ts: Date.now(), 
+                name: "(unknown)"
+            }
+            ----------------------------------
+            */
+            let _ = /([a-f]|[0-9]){8}\-([a-f]|[0-9]){4}\-([a-f]|[0-9]){4}\-([a-f]|[0-9]){8}/gmi
+            if(!typeof JSONified.hdr == 'string' || !JSONified.msg.length <= 0 || !_.test(JSONified.uuid) || parseInt(ts) === NaN || JSONified.name.length <= 0) {
+                return false
+            } else {
+                return true
+            }
+        } catch(e) {
+            return false
+        }
+    }
+}
 
-gen()
+// gen()
 
 const s = net.createServer().listen(isNaN(config.port) ? config.port : 32523, net.isIP(config.address) ? config.address : "0.0.0.0", 256, () => {
     process.title = "BetterChat Server | Online"
@@ -53,7 +56,6 @@ s.on("connection", (sk) => {
     sk.setKeepAlive(5000);
     sk.setNoDelay(true)
     sk.setEncoding("utf-8")
-    sk.write(JSON.stringify({"hdr": "ENC", "pk": pk}, "", " "))
     sk.on("close", () => {
         let ind = conn.indexOf(sk)
         if(ind > -1) {
@@ -72,6 +74,12 @@ s.on("connection", (sk) => {
 
             lastMSGByIP.set(thisIP, JSONified.ts)
             
+            let m = new PacketUtil()
+            let r = m.datahandler(d)
+
+            if(r === false) {
+                return false
+            }
             // console.log(d.toString())
             conn.forEach(c => {
                 c.write(d.toString("utf-8"))
